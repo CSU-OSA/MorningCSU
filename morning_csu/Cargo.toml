@@ -1,0 +1,21 @@
+[package]
+name = "morning_csu"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4.0.1"
+reqwest = { version = "0.11.12", features = ["json"] }
+http="0.2.3"
+serde = "1.0.188"
+serde_derive = "1.0.188"
+serde_json = "1.0.79"
+regex = "1.5.5"
+tokio = "1.17.0"
+log = "0.4"
+simplelog="0.12.1"
+openssl = { version = "0.10", features = ["vendored"] }
+rbatis="4.4.2"
+uuid="1.4.1"
