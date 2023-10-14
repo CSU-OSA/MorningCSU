@@ -1,5 +1,16 @@
+use actix_web::web::Json;
 use serde::{Serialize, Deserialize};
 use log::{info, error};
+use serde_json::Value;
+
+//data中的Value未Serde_Json的数据类型，用以存储任意的JSON数据
+#[derive(Serialize, Deserialize,Debug)]
+pub struct Responses{
+    code:i32,
+    msg:String,
+    data:Option<Value>,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Code2SessionParams {
     app_id: String,
@@ -65,7 +76,7 @@ pub struct Code2SessionReturn{
 ///
 /// -1	    system error	系统繁忙，此时请开发者稍候再试
 ///
-pub async fn code_to_session(js_code:Code2SessionParams)->Result<Code2SessionReturn,String>{
+pub async fn code_to_session(js_code:Code2SessionParams)->Result<Responses,Responses>{
     let (app_id,secret,js_code) = (js_code.app_id,js_code.secret,js_code.js_code);
     let url = format!("https://api.weixin.qq.com/sns/jscode2session?appid={}&secret={}&js_code={}&grant_type=authorization_code",app_id,secret,js_code);
     info!("request to {}",url);
@@ -76,14 +87,24 @@ pub async fn code_to_session(js_code:Code2SessionParams)->Result<Code2SessionRet
                 Err(err) => {
                     let info = format!("code2Session get response to text error!,{}",err.to_string());
                     error!("{}",info);
-                    return Err(String::from("code2Session get response to text error!"));
+                    let error = Responses{
+                        code:500,
+                        msg:info,
+                        data:None,
+                    };
+                    return Err(error);
                 }
             }
         }
         Err(err) =>{
             let info = format!("code2Session get response error!,{}",err.to_string());
             error!("{}",info);
-            return Err(String::from("code2Session get response error!"));
+            let error = Responses{
+                code:500,
+                msg:info,
+                data:None,
+            };
+            return Err(error);
         }
     };
     let resp:Code2SessionReturn = match serde_json::from_str(&resp){
@@ -92,8 +113,80 @@ pub async fn code_to_session(js_code:Code2SessionParams)->Result<Code2SessionRet
             println!("code2Session json parse error!,response is {}",resp);
             let info = format!("code2Session json parse error!,{}",err.to_string());
             error!("{}",info);
-            return Err(String::from("code2Session json parse error!"));
+            let error = Responses{
+                code:500,
+                msg:info,
+                data:None,
+            };
+            return Err(error);
         }
+    };
+    match resp.errcode.as_str(){
+        "0" => {},
+        "40029" => {
+            info!("code2Session error!,js_code is invalid");
+            let error = Responses{
+                code:400,
+                msg:"js_code is invalid".to_string(),
+                data:None,
+            };
+            return Err(error);
+        },
+        "45011" => {
+            info!("code2Session error!,api minute-quota reach limit  mustslower  retry next minute");
+            let error = Responses{
+                code:401,
+                msg:"api minute-quota reach limit  mustslower  retry next minute".to_string(),
+                data:None,
+            };
+            return Err(error);
+        },
+        "40226" => {
+            info!("code2Session error!,code blocked,detail:https://developers.weixin.qq.com/miniprogram/dev/framework/operation.html");
+            let error = Responses{
+                code:402,
+                msg:"code blocked,detail:https://developers.weixin.qq.com/miniprogram/dev/framework/operation.html".to_string(),
+                data:None,
+            };
+            return Err(error);
+        },
+        "-1" => {
+            info!("code2Session error!,wechat system error");
+            let error = Responses{
+                code:500,
+                msg:"wechat system error".to_string(),
+                data:None,
+            };
+            return Err(error);
+        },
+        _ => {
+            let info = format!("code2Session error!,errcode is {},errmsg is {}",resp.errcode,resp.errmsg);
+            error!("{}",info);
+            let error = Responses{
+                code:500,
+                msg:info,
+                data:None,
+            };
+            return Err(error);
+        }
+    }
+    let data = match serde_json::to_value(resp){
+        Ok(data) => data,
+        Err(err) => {
+            let info = format!("response json parse error!,{}",err.to_string());
+            error!("{}",info);
+            let error = Responses{
+                code:500,
+                msg:info,
+                data:None,
+            };
+            return Err(error);
+        }
+    };
+    let resp = Responses{
+        code:200,
+        msg:"success".to_string(),
+        data:Some(data),
     };
     Ok(resp)
 }
